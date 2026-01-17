@@ -44,15 +44,18 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ github.token }}
 
-      - name: Extract version
-        id: version
+      - name: Extract version and image name
+        id: meta
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             VERSION="${{ github.event.inputs.version }}"
           else
             VERSION="${{ github.ref_name }}"
           fi
+          # Convert repository name to lowercase for Docker
+          IMAGE_NAME=$(echo "ghcr.io/${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "image=${IMAGE_NAME}" >> $GITHUB_OUTPUT
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -63,11 +66,11 @@ jobs:
           cache-to: type=gha,mode=max
           push: true
           provenance: false
-          tags: ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}-${{ matrix.arch }}
+          tags: ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}-${{ matrix.arch }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.description=ToolX - Empower any LLM with function calling capabilities
-            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
 
   manifest:
     needs: build
@@ -80,20 +83,23 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ github.token }}
 
-      - name: Extract version
-        id: version
+      - name: Extract version and image name
+        id: meta
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             VERSION="${{ github.event.inputs.version }}"
           else
             VERSION="${{ github.ref_name }}"
           fi
+          # Convert repository name to lowercase for Docker
+          IMAGE_NAME=$(echo "ghcr.io/${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "image=${IMAGE_NAME}" >> $GITHUB_OUTPUT
 
       - name: Create and push multi-arch manifest
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          IMAGE="ghcr.io/${{ github.repository }}"
+          VERSION="${{ steps.meta.outputs.version }}"
+          IMAGE="${{ steps.meta.outputs.image }}"
 
           # Create manifest for version tag
           docker manifest create ${IMAGE}:${VERSION} \

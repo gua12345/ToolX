@@ -18,7 +18,11 @@ ToolX 是一个轻量级的 LLM 函数调用代理服务，通过动态路由和
 
 ```
 ToolX/
+├── .github/
+│   └── workflows/
+│       └── docker-build.yaml   # Docker 构建 CI/CD 配置
 ├── src/
+│   ├── __init__.py
 │   ├── api/                    # API 路由和处理器
 │   │   ├── __init__.py
 │   │   ├── routes.py          # 路由定义
@@ -39,10 +43,13 @@ ToolX/
 │   │   ├── parser.py          # XML 解析器
 │   │   ├── prompt.py          # 提示词生成
 │   │   └── retry.py           # 错误重试逻辑
-│   ├── middleware/             # 中间件
-│   │   ├── __init__.py
-│   │   └── message_processor.py  # 消息预处理
-│   └── main.py                 # 应用入口
+│   └── middleware/             # 中间件
+│       ├── __init__.py
+│       └── message_processor.py  # 消息预处理
+├── .gitattributes              # Git 属性配置
+├── .gitignore                  # Git 忽略文件配置
+├── Dockerfile                  # Docker 镜像构建文件
+├── main.py                     # 应用入口
 ├── config.example.yaml         # 配置文件示例
 ├── requirements.txt            # 项目依赖
 └── README.md                   # 项目文档
