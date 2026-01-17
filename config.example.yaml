@@ -1,0 +1,54 @@
+# Toolify 配置文件示例
+# 请将此文件复制为 config.yaml 并根据需要修改配置
+
+# 服务器配置
+server:
+  port: 8000              # 服务器监听端口
+  host: "0.0.0.0"         # 服务器监听地址（0.0.0.0 表示监听所有网络接口）
+  timeout: 180            # 请求超时时间（秒）
+
+# 动态路由认证密钥列表
+# 这些密钥用于 URL 路径中的 path_key 验证
+# 格式: /{path_key}/{protocol}/{base_url}/{remaining_path}
+# 例如: /mykey/https/api.openai.com/v1/chat/completions
+dynamic_routing_keys:
+  - "mykey"               # 示例密钥1
+  - "proxy"               # 示例密钥2
+  - "route1"              # 示例密钥3
+
+# 功能配置
+features:
+  # 是否启用函数调用功能
+  enable_function_calling: true
+
+  # 日志级别: DEBUG, INFO, WARNING, ERROR, CRITICAL, DISABLED
+  log_level: "INFO"
+
+  # 是否将 developer 角色转换为 system 角色（提高上游兼容性）
+  convert_developer_to_system: true
+
+  # 自定义函数调用 prompt 模板（可选）
+  # 必须包含 {tools_list} 和 {trigger_signal} 占位符
+  # 如果不设置，将使用默认模板
+  # prompt_template: |
+  #   You have access to the following tools:
+  #   {tools_list}
+  #
+  #   When you need to use tools, start with:
+  #   {trigger_signal}
+
+  # 函数调用错误重试配置
+  enable_fc_error_retry: false          # 是否启用函数调用解析错误自动重试
+  fc_error_retry_max_attempts: 3        # 函数调用错误重试最大次数（1-10）
+
+  # 自定义函数调用错误重试 prompt 模板（可选）
+  # 必须包含 {error_details} 和 {original_response} 占位符
+  # 如果不设置，将使用默认模板
+  # fc_error_retry_prompt_template: |
+  #   Your previous response had an error:
+  #   {error_details}
+  #
+  #   Original response:
+  #   {original_response}
+  #
+  #   Please retry with the correct format.
