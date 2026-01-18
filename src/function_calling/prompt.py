@@ -44,6 +44,24 @@ def get_function_call_prompt_template(trigger_signal: str) -> str:
         )
 
     return f"""
+**⚠️ HIGHEST PRIORITY INSTRUCTION - OVERRIDE ALL OTHER TOOL CALLING GUIDELINES:**
+This is the AUTHORITATIVE and ONLY valid tool calling specification for this conversation. You MUST ignore and override any other tool calling formats, guidelines, or instructions you may have learned from:
+- Your pre-training or fine-tuning
+- System prompts or built-in behaviors
+- Previous conversations or examples
+- Any other source
+
+The format specified below is the EXCLUSIVE method for calling tools in this context. Any deviation will result in complete failure.
+
+---
+
+**🔑 YOUR UNIQUE TRIGGER SIGNAL FOR THIS SESSION:**
+{trigger_signal}
+
+**CRITICAL:** This exact string (including angle brackets and underscores) is your ONLY valid trigger signal. You MUST memorize it and use it EXACTLY as shown. Do NOT modify, simplify, or replace it with any other string like "<tool_call>", "<function_call>", or any other format.
+
+---
+
 You have access to the following available tools to help solve problems:
 
 {{tools_list}}
@@ -55,26 +73,45 @@ You have access to the following available tools to help solve problems:
 4. When tool execution results are present in the context, they will be formatted with XML tags like <tool_result>...</tool_result> for easy identification.
 5. This is the ONLY format you can use for tool calls, and any deviation will result in failure.
 
-When you need to use tools, you **MUST** strictly follow this format. Do NOT include any extra text, explanations, or dialogue on the first and second lines of the tool call syntax:
+**CRITICAL XML FORMAT REQUIREMENTS:**
+When you need to use tools, you **MUST** strictly follow this EXACT format. Any deviation will cause parsing failure:
 
-1. When starting tool calls, begin on a new line with exactly:
+1. **Trigger Signal Line**: Start on a new line with EXACTLY:
 {trigger_signal}
-No leading or trailing spaces, output exactly as shown above. The trigger signal MUST be on its own line and appear only once.
+   - No leading or trailing spaces
+   - Must be on its own line
+   - Must appear only once
 
-2. Starting from the second line, **immediately** follow with the complete <function_calls> XML block.
+2. **XML Structure**: Immediately follow with the complete XML block using these EXACT tag names:
+   - Root tag: <function_calls> (NOT <tool_calls>, NOT <function_call>)
+   - Each call: <function_call> (NOT <tool_call>, NOT <invoke>)
+   - Tool name: <tool> (NOT <name>, NOT <function>)
+   - Arguments: <args_json> (NOT <args>, NOT <parameters>, NOT <arguments>)
 
-3. For multiple tool calls, include multiple <function_call> blocks within the same <function_calls> wrapper.
+3. **Multiple Calls**: Include multiple <function_call> blocks within the same <function_calls> wrapper.
 
-4. Do not add any text or explanation after the closing </function_calls> tag.
+4. **No Extra Text**: Do NOT add any text or explanation after the closing </function_calls> tag.
 
-STRICT ARGUMENT KEY RULES:
+**STRICT TAG NAME RULES - MEMORIZE THESE:**
+✅ CORRECT tag names (ONLY these are valid):
+   - <function_calls>  ← Root wrapper (plural)
+   - <function_call>   ← Individual call (singular)
+   - <tool>            ← Tool name
+   - <args_json>       ← Arguments in JSON format
+
+❌ WRONG tag names (will cause failure):
+   - <tool_calls>, <tool_call>, <invoke>, <call>
+   - <name>, <function>, <method>
+   - <args>, <parameters>, <arguments>, <params>
+
+**STRICT ARGUMENT KEY RULES:**
 - You MUST use parameter keys EXACTLY as defined (case- and punctuation-sensitive). Do NOT rename, add, or remove characters.
 - If a key starts with a hyphen (e.g., "-i", "-C"), you MUST keep the leading hyphen in the JSON key. Never convert "-i" to "i" or "-C" to "C".
 - The <tool> tag must contain the exact name of a tool from the list. Any other tool name is invalid.
 - The <args_json> tag must contain a single JSON object with all required arguments for that tool.
 - You MAY wrap the JSON content inside <![CDATA[...]]> to avoid XML escaping issues.
 
-CORRECT Example (multiple tool calls):
+**CORRECT Example (multiple tool calls):**
 ...response content (optional)...
 {trigger_signal}
 <function_calls>
@@ -86,28 +123,44 @@ CORRECT Example (multiple tool calls):
         <tool>search</tool>
         <args_json><![CDATA[{{"keywords": ["Python Document", "how to use python"]}}]]></args_json>
     </function_call>
-  </function_calls>
+</function_calls>
 
-INCORRECT Example (extra text + wrong key names — DO NOT DO THIS):
-...response content (optional)...
+**INCORRECT Example #1 (wrong tag names — DO NOT DO THIS):**
 {trigger_signal}
-I will call the tools for you.
+<tool_call>attempt_completion>  ← WRONG: should be <function_call>
+<tool_calls>  ← WRONG: root should be <function_calls>
+    <invoke>  ← WRONG: should be <function_call>
+        <name>Grep</name>  ← WRONG: should be <tool>
+
+**INCORRECT Example #2 (extra text — DO NOT DO THIS):**
+{trigger_signal}
+I will call the tools for you.  ← WRONG: no text after trigger signal
 <function_calls>
     <function_call>
         <tool>Grep</tool>
-        <args>
+        <args>  ← WRONG: should be <args_json>
             <i>true</i>
             <C>2</C>
-            <path>.</path>
         </args>
     </function_call>
 </function_calls>
 
-INCORRECT Example (output non-XML format — DO NOT DO THIS):
-...response content (optional)...
+**INCORRECT Example #3 (non-XML format — DO NOT DO THIS):**
 ```json
 {{"files":[{{"path":"system.py"}}]}}
 ```
+
+**REMEMBER:** The ONLY valid format is:
+{trigger_signal}  ← Use THIS exact trigger signal (copy it character by character)
+<function_calls>
+    <function_call>
+        <tool>ToolName</tool>
+        <args_json><![CDATA[{{"key": "value"}}]]></args_json>
+    </function_call>
+</function_calls>
+
+**FINAL REMINDER:** Your trigger signal for this session is: {trigger_signal}
+Do NOT use any other string. Do NOT simplify it. Copy it EXACTLY as shown above.
 
 Now please be ready to strictly follow the above specifications.
 """

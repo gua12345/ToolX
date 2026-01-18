@@ -25,10 +25,18 @@ from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import ValidationError
 
+# 导入 zstandard 以启用 zstd 解压缩支持
+try:
+    import zstandard  # noqa: F401 - 导入即启用 httpx 的 zstd 支持
+    _ZSTD_AVAILABLE = True
+except ImportError:
+    _ZSTD_AVAILABLE = False
+
 from .models import ChatCompletionRequest
 from ..config.loader import config_loader
 from ..core.trigger_signal import generate_random_trigger_signal
 from ..middleware.message_processor import preprocess_messages, validate_message_structure
+from ..middleware.prompt_filter import filter_messages
 from ..function_calling import (
     generate_function_prompt,
     safe_process_tool_choice,
@@ -44,6 +52,12 @@ http_client = httpx.AsyncClient()
 
 # 全局触发信号（在应用启动时生成）
 GLOBAL_TRIGGER_SIGNAL = generate_random_trigger_signal()
+
+# 记录 zstd 支持状态
+if _ZSTD_AVAILABLE:
+    logger.info("✅ zstd 解压缩支持已启用")
+else:
+    logger.warning("⚠️ zstd 解压缩支持未启用，可能无法处理 zstd 压缩的响应")
 
 
 def parse_dynamic_route(path: str) -> Optional[Tuple[str, str, str]]:
@@ -161,6 +175,11 @@ async def handle_dynamic_chat_completions(
     try:
         # 解析请求体
         body_dict = await request.json()
+
+        # 记录原始请求体（用于调试工具可能添加的额外提示词）
+        logger.info(f"📥 收到 chat completion 请求")
+        logger.debug(f"📋 原始请求体: {json.dumps(body_dict, ensure_ascii=False, indent=2)}")
+
         body = ChatCompletionRequest(**body_dict)
 
         logger.debug(f"🔧 Received dynamic routing chat completion request, model: {body.model}")
@@ -168,12 +187,24 @@ async def handle_dynamic_chat_completions(
         logger.debug(f"🔧 Number of tools: {len(body.tools) if body.tools else 0}")
         logger.debug(f"🔧 Streaming: {body.stream}")
 
+        # 检查消息中是否有可能与工具注入冲突的内容
+        for idx, msg in enumerate(body.messages):
+            if msg.get("role") == "system":
+                content = msg.get("content", "")
+                logger.debug(f"第 {idx} 个系统提示词的内容: \n {content}")
+
+
         # 构建上游 URL
         upstream_url = f"{base_url}{remaining_path}"
 
+        # 应用提示词过滤器（在消息预处理之前）
+        logger.debug(f"🔧 应用提示词过滤器，原始消息数: {len(body.messages)}")
+        filtered_messages = filter_messages(body.messages)
+        logger.debug(f"🔧 提示词过滤完成，过滤后消息数: {len(filtered_messages)}")
+
         # 消息预处理
-        logger.debug(f"🔧 Starting message preprocessing, original message count: {len(body.messages)}")
-        processed_messages = preprocess_messages(body.messages, GLOBAL_TRIGGER_SIGNAL)
+        logger.debug(f"🔧 Starting message preprocessing, original message count: {len(filtered_messages)}")
+        processed_messages = preprocess_messages(filtered_messages, GLOBAL_TRIGGER_SIGNAL)
         logger.debug(f"🔧 Preprocessing completed, processed message count: {len(processed_messages)}")
 
         if not validate_message_structure(processed_messages):
@@ -852,10 +883,60 @@ async def handle_dynamic_simple_proxy(
         response.raise_for_status()
 
         # 返回响应
-        return JSONResponse(
-            status_code=response.status_code,
-            content=response.json() if response.headers.get("content-type", "").startswith("application/json") else {"data": response.text}
-        )
+        content_type = response.headers.get("content-type", "")
+        content_encoding = response.headers.get("content-encoding", "")
+
+        if content_type.startswith("application/json"):
+            try:
+                # 尝试解析 JSON
+                return JSONResponse(
+                    status_code=response.status_code,
+                    content=response.json()
+                )
+            except Exception as e:
+                # JSON 解析失败，记录详细错误信息
+                logger.warning(f"⚠️ Failed to parse JSON response: {e}")
+                logger.debug(f"🔧 Content-Encoding: {content_encoding}")
+                logger.debug(f"🔧 Response content length: {len(response.content)}")
+
+                # 检查是否是压缩问题
+                if content_encoding and content_encoding.lower() == "zstd" and not _ZSTD_AVAILABLE:
+                    logger.error(f"❌ Response uses zstd compression but zstandard library is not installed")
+                    return JSONResponse(
+                        status_code=500,
+                        content={
+                            "error": "Server configuration error: zstd decompression not supported",
+                            "hint": "Install zstandard library to enable zstd support"
+                        }
+                    )
+
+                try:
+                    # 尝试用 UTF-8 解码（忽略错误）
+                    text_content = response.content.decode('utf-8', errors='replace')
+                    return JSONResponse(
+                        status_code=response.status_code,
+                        content={"data": text_content, "warning": "Response decoding issue"}
+                    )
+                except Exception as decode_error:
+                    logger.error(f"❌ Failed to decode response: {decode_error}")
+                    return JSONResponse(
+                        status_code=response.status_code,
+                        content={"error": "Failed to decode response", "raw_length": len(response.content)}
+                    )
+        else:
+            # 非 JSON 响应，尝试解码为文本
+            try:
+                text_content = response.content.decode('utf-8', errors='replace')
+                return JSONResponse(
+                    status_code=response.status_code,
+                    content={"data": text_content}
+                )
+            except Exception as e:
+                logger.error(f"❌ Failed to decode text response: {e}")
+                return JSONResponse(
+                    status_code=response.status_code,
+                    content={"error": "Failed to decode response", "raw_length": len(response.content)}
+                )
 
     except httpx.HTTPStatusError as e:
         logger.error(f"❌ Proxy error: status_code={e.response.status_code}")

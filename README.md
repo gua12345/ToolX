@@ -12,6 +12,7 @@ ToolX 是一个轻量级的 LLM 函数调用代理服务，通过动态路由和
 - **流式支持**: 完整支持流式和非流式响应
 - **错误重试**: 可选的函数调用解析错误自动重试机制
 - **消息预处理**: 自动转换 tool 消息和 assistant.tool_calls 为上游兼容格式
+- **提示词过滤**: 灵活的规则引擎，处理可能与函数调用冲突的提示词内容
 - **模块化架构**: 清晰的代码结构，易于维护和扩展
 
 ## 项目结构
@@ -45,12 +46,17 @@ ToolX/
 │   │   └── retry.py           # 错误重试逻辑
 │   └── middleware/             # 中间件
 │       ├── __init__.py
-│       └── message_processor.py  # 消息预处理
+│       ├── message_processor.py  # 消息预处理
+│       └── prompt_filter.py   # 提示词过滤器
+├── doc/                        # 文档目录
+│   └── PROMPT_FILTER_GUIDE.md # 提示词过滤器使用指南
 ├── .gitattributes              # Git 属性配置
 ├── .gitignore                  # Git 忽略文件配置
 ├── Dockerfile                  # Docker 镜像构建文件
 ├── main.py                     # 应用入口
 ├── config.example.yaml         # 配置文件示例
+├── prompt_filter_rules.json    # 提示词过滤规则配置
+├── prompt_filter_rules.example.json  # 提示词过滤规则示例
 ├── requirements.txt            # 项目依赖
 └── README.md                   # 项目文档
 ```
@@ -327,6 +333,23 @@ features:
 ```
 
 必须包含 `{tools_list}` 和 `{trigger_signal}` 占位符。
+
+## 提示词过滤器
+
+提示词过滤器用于处理可能与函数调用提示词冲突的内容，例如 IDE 注入的系统提示词、工具使用指南等。
+
+### 配置文件
+
+- `prompt_filter_rules.json`: 实际使用的过滤规则配置文件（已包含在仓库中）
+- `prompt_filter_rules.example.json`: 过滤规则示例文件
+
+### 快速启用
+
+过滤器默认启用，使用仓库中的 `prompt_filter_rules.json` 配置。如需自定义规则，直接编辑该文件即可。
+
+### 详细文档
+
+完整的使用指南、规则类型说明和示例配置，请参考：[提示词过滤器使用指南](doc/PROMPT_FILTER_GUIDE.md)
 
 ## 架构说明
 

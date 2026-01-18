@@ -1,0 +1,94 @@
+{
+  "enabled": true,
+  "description": "提示词过滤规则配置文件 - 用于处理可能与函数调用提示词冲突的内容",
+  "rules": [
+    {
+      "name": "移除 Roo 系统提示词",
+      "description": "移除来自 Roo AI 助手的系统提示词，避免与函数调用提示词冲突",
+      "enabled": true,
+      "type": "remove_system_message",
+      "target_roles": ["system"],
+      "condition": {
+        "type": "contains",
+        "patterns": [
+          "You are Roo",
+          "TOOL USE",
+          "MARKDOWN RULES"
+        ],
+        "case_sensitive": false,
+        "match_any": true
+      }
+    },
+    {
+      "name": "移除 Cursor 系统提示词",
+      "description": "移除来自 Cursor 编辑器的系统提示词",
+      "enabled": true,
+      "type": "remove_system_message",
+      "target_roles": ["system"],
+      "condition": {
+        "type": "contains",
+        "patterns": [
+          "You are Cursor",
+          "an AI programming assistant"
+        ],
+        "case_sensitive": false,
+        "match_any": true
+      }
+    },
+    {
+      "name": "移除Roo Code工具使用指南",
+      "description": "移除Roo Code消息中的工具使用指南部分，保留分隔符",
+      "enabled": true,
+      "type": "remove_pattern",
+      "target_roles": ["system"],
+      "condition": {
+        "type": "regex",
+        "pattern": "====\\s*TOOL USE.*?(?====)",
+        "flags": "DOTALL"
+      },
+      "action": {
+        "replacement": ""
+      }
+    },
+    {
+      "name": "截断过长的系统消息",
+      "description": "截断超过指定长度的系统消息，保留前面部分",
+      "enabled": false,
+      "type": "truncate_message",
+      "target_roles": ["system"],
+      "condition": {
+        "type": "length_exceeds",
+        "threshold": 5000
+      },
+      "action": {
+        "max_length": 3000,
+        "append_notice": "\n\n[消息已被截断以避免冲突]"
+      }
+    },
+    {
+      "name": "替换函数调用关键词",
+      "description": "替换可能与函数调用格式冲突的关键词",
+      "enabled": false,
+      "type": "replace_in_content",
+      "target_roles": ["system", "user"],
+      "condition": {
+        "type": "contains",
+        "patterns": ["<function_calls>", "</function_calls>"],
+        "case_sensitive": true,
+        "match_any": true
+      },
+      "action": {
+        "replacements": [
+          {
+            "from": "<function_calls>",
+            "to": "[function_calls]"
+          },
+          {
+            "from": "</function_calls>",
+            "to": "[/function_calls]"
+          }
+        ]
+      }
+    }
+  ]
+}

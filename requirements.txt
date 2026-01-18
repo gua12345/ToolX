@@ -6,6 +6,7 @@ uvicorn[standard]==0.40.0
 
 # HTTP 客户端
 httpx==0.28.1
+zstandard==0.25.0  # 支持 zstd 压缩解码
 
 # 数据验证
 pydantic==2.12.5

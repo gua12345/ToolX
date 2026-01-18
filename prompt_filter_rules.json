@@ -1,0 +1,21 @@
+{
+  "enabled": true,
+  "description": "提示词过滤规则配置文件 - 用于处理可能与函数调用提示词冲突的内容",
+  "rules": [
+    {
+      "name": "移除Roo Code工具使用指南",
+      "description": "移除Roo Code消息中的工具使用指南部分，保留分隔符",
+      "enabled": true,
+      "type": "remove_pattern",
+      "target_roles": ["system"],
+      "condition": {
+        "type": "regex",
+        "pattern": "====\\s*TOOL USE.*?(?====)",
+        "flags": "DOTALL"
+      },
+      "action": {
+        "replacement": ""
+      }
+    }
+  ]
+}
